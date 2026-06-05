@@ -14,8 +14,9 @@ SHOW_VERSION=true
 SHOW_EFFORT=true
 SHOW_FAST=true
 
-# Refresh interval in seconds (set in settings.json, shown here for reference)
-# REFRESH_INTERVAL=10
+# Polling refresh interval (configured in settings.json, not here).
+# Claude Code re-runs the status command every N seconds, even while idle
+# (after /compact, before the first message). Install sets refreshInterval=2.
 
 # Bar style: "dots" (●○) or "blocks" (█░)
 BAR_STYLE=blocks

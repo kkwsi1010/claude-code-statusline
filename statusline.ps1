@@ -186,7 +186,7 @@ if ($SHOW_COST -and $totalCost -and $totalCost -ne 0) {
 }
 if ($SHOW_COMMANDS -or $SHOW_VERSION) {
     $out += "$sep"
-    if ($SHOW_VERSION) { $out += "${GR}v1.0.27${R}" }
+    if ($SHOW_VERSION) { $out += "${GR}v1.0.28${R}" }
     if ($SHOW_VERSION -and $SHOW_COMMANDS) { $out += " ${GR}|${R} " }
     if ($SHOW_COMMANDS) { $out += "${D}${GR}$($L.set): npx cc-statusbar${R}" }
 }

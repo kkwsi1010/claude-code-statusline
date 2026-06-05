@@ -112,12 +112,18 @@ function installTo(t) {
     shellCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${winPath}"`;
   }
 
+  // Polling: refreshInterval re-runs the command on a fixed timer so the bar
+  // also updates during idle periods (after /compact, before first message, etc.)
+  const POLL_SECONDS = 2;
   const existingCmd = settings.statusLine && settings.statusLine.command;
   if (existingCmd && (existingCmd.includes('statusline.sh') || existingCmd.includes('statusline.ps1')) && !shellArg) {
-    console.log(`  settings.json: keeping existing "${existingCmd}"`);
+    // Keep existing command, but ensure polling is on (older installs may lack it or have a long interval)
+    const cur = settings.statusLine.refreshInterval;
+    if (!cur || cur > 3) settings.statusLine.refreshInterval = POLL_SECONDS;
+    console.log(`  settings.json: keeping "${existingCmd}" (refreshInterval=${settings.statusLine.refreshInterval}s)`);
   } else {
-    settings.statusLine = { type: 'command', command: shellCmd, refreshInterval: 3 };
-    console.log(`  settings.json: command = "${shellCmd}"`);
+    settings.statusLine = { type: 'command', command: shellCmd, refreshInterval: POLL_SECONDS };
+    console.log(`  settings.json: command = "${shellCmd}" (refreshInterval=${POLL_SECONDS}s)`);
   }
 
   fs.writeFileSync(t.settingsPath, JSON.stringify(settings, null, 2) + '\n');
