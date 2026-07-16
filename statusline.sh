@@ -248,7 +248,7 @@ fi
 if [ "$SHOW_COMMANDS" = "true" ] || [ "$SHOW_VERSION" = "true" ]; then
     hint=""
     ver=""; cmd=""
-    [ "$SHOW_VERSION" = "true" ] && ver="v1.0.28"
+    [ "$SHOW_VERSION" = "true" ] && ver="v1.0.29"
     [ "$SHOW_COMMANDS" = "true" ] && cmd="${L_SET}: npx cc-statusbar"
     printf "%b" "$sep"
     [ -n "$ver" ] && printf "${GR}%s${R}" "$ver"
@@ -268,18 +268,25 @@ for c in "/mnt/c/Users/$USER/DevLauncher.ps1" "/c/Users/$USER/DevLauncher.ps1" "
 done
 [ -z "$DL" ] && exit 0
 
-# Foreground refresh with cache (TTL 5s)
+# Async refresh with cache (TTL 5s). Never blocks the status line:
+# render always reads the cache, and a stale cache only triggers a detached
+# background refresh for the NEXT render. An inline `powershell.exe status`
+# costs ~4s from WSL, which makes Claude Code drop the whole status line, so
+# the refresh must run detached (fds to /dev/null so it doesn't hold the pipe).
 now=$NOW
 need_refresh=true
 [ -f "$CACHE" ] && cached_at=$(head -1 "$CACHE" 2>/dev/null) && [ $(( now - ${cached_at:-0} )) -lt 5 ] 2>/dev/null && need_refresh=false
 
-if [ "$need_refresh" = "true" ]; then
+if [ "$need_refresh" = "true" ] && [ ! -f "$CACHE.lock" ]; then
     tmp="${DL#/mnt}"; drive="${tmp:1:1}"; rest="${tmp:2}"
     ws=$(printf '%s:%s' "${drive^}" "$rest" | tr '/' '\\' 2>/dev/null)
-    r=$(timeout 5 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ws" status 2>/dev/null | tr -d '\r')
-    if [ -n "$r" ]; then
-        { echo "$now"; echo "$r"; } > "$CACHE"
-    fi
+    # Detached background refresh; lock prevents piling up powershell processes.
+    ( : > "$CACHE.lock"
+      r=$(timeout 5 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ws" status 2>/dev/null | tr -d '\r')
+      [ -n "$r" ] && { echo "$now"; echo "$r"; } > "$CACHE"
+      rm -f "$CACHE.lock"
+    ) </dev/null >/dev/null 2>&1 &
+    disown 2>/dev/null
 fi
 
 # Read from cache
