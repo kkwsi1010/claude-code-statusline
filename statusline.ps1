@@ -99,6 +99,11 @@ function Make-Bar([int]$pct) {
     return ($fs * $n) + ($es * $m)
 }
 
+# Get-Date -UFormat %s is buggy on PowerShell 5.1: in non-UTC time zones it
+# returns local-clock-as-UTC, off by the zone offset (e.g. 9h early in KST).
+# DateTimeOffset is timezone-safe.
+function Get-UnixTime { return [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() }
+
 function Format-Time([int]$sec, [string]$fmt) {
     if ($sec -le 0) { return "now" }
     if ($fmt -eq "hm") { return "{0}h {1}m" -f [Math]::Floor($sec/3600), [Math]::Floor($sec%3600/60) }
@@ -169,14 +174,14 @@ if ($SHOW_CONTEXT) {
 if ($SHOW_5H_LIMIT -and $fiveHReset -gt 0) {
     $fc = Get-PctColor $fiveHPct
     $out += "${sep}$($L.h5) ${fc}$(Make-Bar $fiveHPct)${R} ${fc}${fiveHPct}%${R}"
-    $d5 = $fiveHReset - [int](Get-Date -UFormat %s)
+    $d5 = $fiveHReset - [int](Get-UnixTime)
     $out += " ${GR}$(Format-Time $d5 'hm')${R}"
     $sep = " ${GR}|${R} "
 }
 if ($SHOW_7D_LIMIT -and $sevenDReset -gt 0) {
     $sc = Get-PctColor $sevenDPct
     $out += "${sep}$($L.d7) ${sc}$(Make-Bar $sevenDPct)${R} ${sc}${sevenDPct}%${R}"
-    $d7 = $sevenDReset - [int](Get-Date -UFormat %s)
+    $d7 = $sevenDReset - [int](Get-UnixTime)
     $out += " ${GR}$(Format-Time $d7 'dhm')${R}"
     $sep = " ${GR}|${R} "
 }
@@ -186,7 +191,7 @@ if ($SHOW_COST -and $totalCost -and $totalCost -ne 0) {
 }
 if ($SHOW_COMMANDS -or $SHOW_VERSION) {
     $out += "$sep"
-    if ($SHOW_VERSION) { $out += "${GR}v1.0.29${R}" }
+    if ($SHOW_VERSION) { $out += "${GR}v1.0.30${R}" }
     if ($SHOW_VERSION -and $SHOW_COMMANDS) { $out += " ${GR}|${R} " }
     if ($SHOW_COMMANDS) { $out += "${D}${GR}$($L.set): npx cc-statusbar${R}" }
 }
@@ -200,7 +205,7 @@ $dlPath = Join-Path $env:USERPROFILE "DevLauncher.ps1"
 if (-not (Test-Path $dlPath)) { exit }
 
 $cache = Join-Path $env:TEMP ".devlauncher-status-cache"
-$now = [int](Get-Date -UFormat %s)
+$now = [int](Get-UnixTime)
 $needRefresh = $true
 
 if (Test-Path $cache) {
@@ -212,17 +217,18 @@ if (Test-Path $cache) {
 }
 
 if ($needRefresh) {
-    Start-Job -ScriptBlock {
-        param($dlp, $cp)
-        $r = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $dlp status 2>$null
-        @([int](Get-Date -UFormat %s)) + $r | Set-Content $cp
-    } -ArgumentList $dlPath, $cache | Out-Null
+    # Start-Job dies with the parent powershell.exe (this script exits right after
+    # printing), so the cache would never fill. Use a detached process instead.
+    $refreshScript = Join-Path $PSScriptRoot "devlauncher-cache-refresh.ps1"
+    Start-Process -WindowStyle Hidden -FilePath "powershell.exe" `
+        -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","$refreshScript","$dlPath","$cache" `
+        -ErrorAction SilentlyContinue | Out-Null
 }
 
 if (Test-Path $cache) {
     $raw = (Get-Content $cache | Select-Object -Skip 1) -join "`n"
     $frames = @([char]0x280B,[char]0x2819,[char]0x2839,[char]0x2838,[char]0x283C,[char]0x2834,[char]0x2826,[char]0x2807)
-    $spin = $frames[[int](Get-Date -UFormat %s) % 8]
+    $spin = $frames[[int](Get-UnixTime) % 8]
     $parts = ""
     foreach ($line in ($raw -split "`n")) {
         if (-not $line.Trim()) { continue }

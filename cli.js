@@ -26,6 +26,7 @@ function addTarget(home, shellType) {
     claudeDir: path.join(home, '.claude'),
     scriptDest: path.join(home, '.claude', 'statusline.sh'),
     scriptPsDest: path.join(home, '.claude', 'statusline.ps1'),
+    helperPsDest: path.join(home, '.claude', 'devlauncher-cache-refresh.ps1'),
     confDest: path.join(home, '.claude', 'statusline.conf'),
     settingsPath: path.join(home, '.claude', 'settings.json'),
     shellType
@@ -63,6 +64,7 @@ if (targets.length === 0) {
 
 const scriptSrc = path.join(__dirname, 'statusline.sh');
 const scriptPsSrc = path.join(__dirname, 'statusline.ps1');
+const helperPsSrc = path.join(__dirname, 'devlauncher-cache-refresh.ps1');
 const confSrc = path.join(__dirname, 'statusline.conf.example');
 
 // Backward compat for uninstall
@@ -86,6 +88,11 @@ function installTo(t) {
   fs.writeFileSync(t.scriptPsDest, Buffer.concat([bom, ps1Content]));
   console.log(`  statusline.sh -> ${t.scriptDest}`);
   console.log(`  statusline.ps1 -> ${t.scriptPsDest}`);
+
+  if (t.shellType === 'powershell' && fs.existsSync(helperPsSrc)) {
+    fs.copyFileSync(helperPsSrc, t.helperPsDest);
+    console.log(`  devlauncher-cache-refresh.ps1 -> ${t.helperPsDest}`);
+  }
 
   if (!fs.existsSync(t.confDest)) {
     // Write conf with UTF-8 BOM so PowerShell reads unicode correctly
@@ -139,6 +146,7 @@ function uninstall() {
   for (const t of targets) {
     if (fs.existsSync(t.scriptDest)) fs.unlinkSync(t.scriptDest);
     if (fs.existsSync(t.scriptPsDest)) fs.unlinkSync(t.scriptPsDest);
+    if (fs.existsSync(t.helperPsDest)) fs.unlinkSync(t.helperPsDest);
     if (fs.existsSync(t.settingsPath)) {
       try {
         const s = JSON.parse(fs.readFileSync(t.settingsPath, 'utf8'));
