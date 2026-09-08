@@ -5,8 +5,24 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
-$input = $input | Out-String
-if (-not $input) { $input = [Console]::In.ReadToEnd() }
+# Claude Code sends UTF-8 JSON on stdin. Read the raw stream and decode it as
+# UTF-8 ourselves: the console default is the system code page (CP949 on Korean
+# Windows, etc.), which mangles non-ASCII values such as a renamed session title.
+# ConvertFrom-Json then fails and the bar silently disappears for that session.
+# This path needs -InputFormat None in the launch command, otherwise PowerShell
+# consumes stdin into the pipeline before we get here. The two fallbacks keep
+# older installs working until their settings.json is upgraded.
+$rawInput = ''
+try {
+    $stdinReader = New-Object System.IO.StreamReader(
+        [Console]::OpenStandardInput(),
+        (New-Object System.Text.UTF8Encoding $false))
+    $rawInput = $stdinReader.ReadToEnd()
+    $stdinReader.Dispose()
+} catch { }
+if (-not $rawInput) { $rawInput = $input | Out-String }
+if (-not $rawInput) { $rawInput = [Console]::In.ReadToEnd() }
+$input = $rawInput
 
 # ===================================================
 # Config
@@ -191,7 +207,7 @@ if ($SHOW_COST -and $totalCost -and $totalCost -ne 0) {
 }
 if ($SHOW_COMMANDS -or $SHOW_VERSION) {
     $out += "$sep"
-    if ($SHOW_VERSION) { $out += "${GR}v1.0.30${R}" }
+    if ($SHOW_VERSION) { $out += "${GR}v1.0.31${R}" }
     if ($SHOW_VERSION -and $SHOW_COMMANDS) { $out += " ${GR}|${R} " }
     if ($SHOW_COMMANDS) { $out += "${D}${GR}$($L.set): npx cc-statusbar${R}" }
 }

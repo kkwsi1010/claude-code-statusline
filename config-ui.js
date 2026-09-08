@@ -131,7 +131,7 @@ function buildItems() {
     { key: '_hdr_ui', type: 'header', label: l.ui },
     { key: 'LANGUAGE', label: `🌐 ${l.lang}`, type: 'language', default: 'en' },
     { key: 'SHOW_COMMANDS', label: l.hint, type: 'bool', default: 'true' },
-    { key: 'SHOW_VERSION', label: 'Version (v1.0.30)', type: 'bool', default: 'true' },
+    { key: 'SHOW_VERSION', label: 'Version (v1.0.31)', type: 'bool', default: 'true' },
     { key: 'SHOW_EFFORT', label: 'Effort level (effort:max etc.)', type: 'bool', default: 'true' },
     { key: 'SHOW_FAST', label: 'Fast mode (fast:on)', type: 'bool', default: 'true' },
     { key: '_hdr_bar', type: 'header', label: l.bar },

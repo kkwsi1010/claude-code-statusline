@@ -116,19 +116,31 @@ function installTo(t) {
   } else {
     // Use Windows-style path for PowerShell
     const winPath = t.scriptPsDest.replace(/\\/g, '\\\\');
-    shellCmd = `powershell -NoProfile -ExecutionPolicy Bypass -File "${winPath}"`;
+    // -InputFormat None is required. Without it PowerShell binds stdin to the
+    // pipeline and decodes it with the console code page (CP949 on Korean
+    // Windows, etc.), which mangles non-ASCII session titles. ConvertFrom-Json
+    // then fails and the status line silently disappears for that session.
+    shellCmd = `powershell -NoProfile -ExecutionPolicy Bypass -InputFormat None -File "${winPath}"`;
   }
 
   // Polling: refreshInterval re-runs the command on a fixed timer so the bar
   // also updates during idle periods (after /compact, before first message, etc.)
   const POLL_SECONDS = 2;
   const existingCmd = settings.statusLine && settings.statusLine.command;
-  if (existingCmd && (existingCmd.includes('statusline.sh') || existingCmd.includes('statusline.ps1')) && !shellArg) {
+  const isOurs = existingCmd && (existingCmd.includes('statusline.sh') || existingCmd.includes('statusline.ps1'));
+  // Older installs wrote the PowerShell command without -InputFormat None, which
+  // breaks any session whose title contains non-ASCII characters. Those have to be
+  // rewritten on upgrade instead of being kept as-is.
+  const needsInputFormatFix = isOurs
+    && existingCmd.includes('statusline.ps1')
+    && !/-InputFormat\s+None/i.test(existingCmd);
+  if (isOurs && !shellArg && !needsInputFormatFix) {
     // Keep existing command, but ensure polling is on (older installs may lack it or have a long interval)
     const cur = settings.statusLine.refreshInterval;
     if (!cur || cur > 3) settings.statusLine.refreshInterval = POLL_SECONDS;
     console.log(`  settings.json: keeping "${existingCmd}" (refreshInterval=${settings.statusLine.refreshInterval}s)`);
   } else {
+    if (needsInputFormatFix) console.log('  settings.json: upgrading command (adding -InputFormat None)');
     settings.statusLine = { type: 'command', command: shellCmd, refreshInterval: POLL_SECONDS };
     console.log(`  settings.json: command = "${shellCmd}" (refreshInterval=${POLL_SECONDS}s)`);
   }
