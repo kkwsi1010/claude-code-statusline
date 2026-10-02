@@ -207,7 +207,7 @@ if ($SHOW_COST -and $totalCost -and $totalCost -ne 0) {
 }
 if ($SHOW_COMMANDS -or $SHOW_VERSION) {
     $out += "$sep"
-    if ($SHOW_VERSION) { $out += "${GR}v1.0.31${R}" }
+    if ($SHOW_VERSION) { $out += "${GR}v1.0.32${R}" }
     if ($SHOW_VERSION -and $SHOW_COMMANDS) { $out += " ${GR}|${R} " }
     if ($SHOW_COMMANDS) { $out += "${D}${GR}$($L.set): npx cc-statusbar${R}" }
 }
@@ -233,12 +233,24 @@ if (Test-Path $cache) {
 }
 
 if ($needRefresh) {
-    # Start-Job dies with the parent powershell.exe (this script exits right after
-    # printing), so the cache would never fill. Use a detached process instead.
-    $refreshScript = Join-Path $PSScriptRoot "devlauncher-cache-refresh.ps1"
-    Start-Process -WindowStyle Hidden -FilePath "powershell.exe" `
-        -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","$refreshScript","$dlPath","$cache" `
-        -ErrorAction SilentlyContinue | Out-Null
+    # One refresh at a time. This script runs every refreshInterval (2 s); without a lock, a refresh slower
+    # than the 10 s cache age got a new sibling on every render, and on a busy machine they piled up and never
+    # ended (140 hung powershell.exe in 11 days on one laptop). The lock holds the start time; the helper
+    # removes it when the cache is written. A lock older than 60 s counts as dead (helper hung or killed).
+    $lock = "$cache.lock"
+    $busy = $false
+    if (Test-Path $lock) {
+        try { $busy = ($now - [int]((Get-Content $lock -ErrorAction Stop) -join '')) -lt 60 } catch { $busy = $false }
+    }
+    if (-not $busy) {
+        $now | Set-Content $lock -ErrorAction SilentlyContinue
+        # Start-Job dies with the parent powershell.exe (this script exits right after
+        # printing), so the cache would never fill. Use a detached process instead.
+        $refreshScript = Join-Path $PSScriptRoot "devlauncher-cache-refresh.ps1"
+        Start-Process -WindowStyle Hidden -FilePath "powershell.exe" `
+            -ArgumentList "-NoProfile","-ExecutionPolicy","Bypass","-File","$refreshScript","$dlPath","$cache" `
+            -ErrorAction SilentlyContinue | Out-Null
+    }
 }
 
 if (Test-Path $cache) {
